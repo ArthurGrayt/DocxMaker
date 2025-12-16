@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desbloquear Rodapé DOCX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Desbloquear DOCX</h1>
+        <p class="subtitle">Remova proteções de rodapé recriando o arquivo.</p>
+
+        <div class="upload-area" id="drop-zone">
+            <span class="upload-icon">📄</span>
+            <p class="upload-text">Arraste e solte seu arquivo .docx aqui<br>ou clique para selecionar</p>
+            <input type="file" id="file-input" accept=".docx" class="hidden" multiple>
+            <p id="file-name" class="hidden"></p>
+        </div>
+
+        <button id="process-btn" class="btn hidden">Liberar Rodapé</button>
+        <div id="status" class="status-message"></div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name');
+        const processBtn = document.getElementById('process-btn');
+        const statusDiv = document.getElementById('status');
+        let selectedFiles = [];
+
+        // Click to select
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        // File selection handling
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+        // Drag and Drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        function handleFiles(files) {
+            if (!files || files.length === 0) return;
+
+            // Validate all are docx
+            let validFiles = [];
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].name.endsWith('.docx')) {
+                    validFiles.push(files[i]);
+                }
+            }
+
+            if (validFiles.length === 0) {
+                showStatus('Por favor, envie apenas arquivos .docx', 'error');
+                return;
+            }
+
+            selectedFiles = validFiles; // Global
+
+            if (validFiles.length === 1) {
+                fileNameDisplay.textContent = validFiles[0].name;
+            } else {
+                fileNameDisplay.textContent = `${validFiles.length} arquivos selecionados`;
+            }
+
+            fileNameDisplay.classList.remove('hidden');
+            processBtn.classList.remove('hidden');
+            statusDiv.textContent = '';
+        }
+
+        function showStatus(msg, type) {
+            statusDiv.textContent = msg;
+            statusDiv.className = 'status-message ' + type;
+        }
+
+        processBtn.addEventListener('click', async () => {
+            if (!selectedFiles || selectedFiles.length === 0) return;
+
+            // Loading state
+            processBtn.disabled = true;
+            processBtn.innerHTML = '<span class="loading-spinner"></span>Processando...';
+            statusDiv.textContent = '';
+
+            const formData = new FormData();
+            selectedFiles.forEach(file => {
+                formData.append('file', file);
+            });
+
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus(data.message || 'Arquivos processados! Baixando ZIP...', 'success');
+
+                    // Create invisible link and click it
+                    const link = document.createElement('a');
+                    link.href = data.download_url;
+                    link.download = '';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // Reset UI
+                    processBtn.innerHTML = 'Liberar Rodapé';
+                    processBtn.disabled = false;
+                } else {
+                    showStatus('Erro: ' + data.message, 'error');
+                    processBtn.innerHTML = 'Liberar Rodapé';
+                    processBtn.disabled = false;
+                }
+            } catch (error) {
+                console.error(error);
+                showStatus('Erro de conexão.', 'error');
+                processBtn.innerHTML = 'Liberar Rodapé';
+                processBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+
+</html>
