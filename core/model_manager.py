@@ -2,9 +2,16 @@ import os
 import json
 import uuid
 import shutil
+import tempfile
 from core import preview_generator
 
-MODELS_DIR = os.path.join(os.getcwd(), 'models')
+# Configuration for Vercel/Serverless
+if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    BASE_DIR = tempfile.gettempdir()
+else:
+    BASE_DIR = os.getcwd()
+
+MODELS_DIR = os.path.join(BASE_DIR, 'models')
 os.makedirs(MODELS_DIR, exist_ok=True)
 
 METADATA_FILE = os.path.join(MODELS_DIR, 'metadata.json')

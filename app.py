@@ -6,8 +6,17 @@ from core.processor import process_docx, process_with_model
 from core import model_manager
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
-app.config['PROCESSED_FOLDER'] = os.path.join(os.getcwd(), 'processed')
+
+# Serverless/Vercel paths
+if os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'):
+    import tempfile
+    base_tmp = tempfile.gettempdir()
+    app.config['UPLOAD_FOLDER'] = os.path.join(base_tmp, 'uploads')
+    app.config['PROCESSED_FOLDER'] = os.path.join(base_tmp, 'processed')
+else:
+    app.config['UPLOAD_FOLDER'] = os.path.join(os.getcwd(), 'uploads')
+    app.config['PROCESSED_FOLDER'] = os.path.join(os.getcwd(), 'processed')
+
 app.config['MODELS_DIR'] = model_manager.MODELS_DIR
 
 # Ensure directories exist
