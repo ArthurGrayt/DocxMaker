@@ -4,140 +4,246 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Desbloquear Rodapé DOCX</title>
+    <title>DocxMaker Pro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
-    <div class="container">
-        <h1>Desbloquear DOCX</h1>
-        <p class="subtitle">Remova proteções de rodapé recriando o arquivo.</p>
 
-        <div class="upload-area" id="drop-zone">
-            <span class="upload-icon">📄</span>
-            <p class="upload-text">Arraste e solte seu arquivo .docx aqui<br>ou clique para selecionar</p>
-            <input type="file" id="file-input" accept=".docx" class="hidden" multiple>
-            <p id="file-name" class="hidden"></p>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="brand">Docx<span>Maker</span></div>
+        <div class="nav-item active" onclick="switchTab('home')">
+            <span>🏠</span> Home
+        </div>
+        <div class="nav-item" onclick="switchTab('models')">
+            <span>🎨</span> Modelos
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main">
+
+        <!-- HOME TAB -->
+        <div id="home-view">
+            <h1>Criar Documento</h1>
+            <p class="subtitle">Selecione um modelo visual e envie seu conteúdo.</p>
+
+            <h3>1. Escolha o Modelo</h3>
+            <div class="grid" id="models-grid">
+                <!-- Javascript will populate this -->
+            </div>
+
+            <div class="upload-zone" id="drop-zone">
+                <span class="icon-upload">☁️</span>
+                <h3>Arraste seus arquivos DOCX</h3>
+                <p style="color: var(--text-secondary)">ou clique para buscar</p>
+                <input type="file" id="file-input" class="hidden" multiple accept=".docx">
+                <div id="file-info" style="margin-top: 1rem; font-weight: 500;"></div>
+            </div>
+
+            <button id="process-btn" class="btn-primary hidden">Gerar Documentos</button>
+            <div id="status-msg" class="hidden status"></div>
         </div>
 
-        <button id="process-btn" class="btn hidden">Liberar Rodapé</button>
-        <div id="status" class="status-message"></div>
+        <!-- MODELS TAB -->
+        <div id="models-view" class="hidden">
+            <h1>Gerenciar Modelos</h1>
+            <p class="subtitle">Adicione seus templates com cabeçalho e rodapé.</p>
+
+            <div class="modal">
+                <h3>Novo Modelo</h3>
+                <div class="form-group">
+                    <input type="text" id="new-model-name" class="form-input"
+                        placeholder="Nome do modelo (Ex: Proposta Comercial)">
+                </div>
+                <div class="form-group">
+                    <label style="display:block; margin-bottom:0.5rem; color:var(--text-secondary)">Arquivo DOCX</label>
+                    <input type="file" id="new-model-file" accept=".docx" class="form-input">
+                </div>
+                <button onclick="uploadModel()" class="btn-primary">Salvar Modelo</button>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">* A prévia será gerada
+                    automaticamente.</p>
+            </div>
+
+            <h3>Meus Modelos</h3>
+            <div class="grid" id="manage-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
     </div>
 
     <script>
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const fileNameDisplay = document.getElementById('file-name');
-        const processBtn = document.getElementById('process-btn');
-        const statusDiv = document.getElementById('status');
+        // State
+        let currentModelId = "";
         let selectedFiles = [];
 
-        // Click to select
-        dropZone.addEventListener('click', () => fileInput.click());
+        // Tab Switching
+        function switchTab(tab) {
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            // simple active logic finding by text content approx or index
+            if (tab === 'home') {
+                document.querySelectorAll('.nav-item')[0].classList.add('active');
+                document.getElementById('home-view').classList.remove('hidden');
+                document.getElementById('models-view').classList.add('hidden');
+                loadModelsHome();
+            } else {
+                document.querySelectorAll('.nav-item')[1].classList.add('active');
+                document.getElementById('home-view').classList.add('hidden');
+                document.getElementById('models-view').classList.remove('hidden');
+                loadModelsManage();
+            }
+        }
 
-        // File selection handling
-        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        // --- HOME LOGIC ---
+        async function loadModelsHome() {
+            const grid = document.getElementById('models-grid');
+            grid.innerHTML = '';
 
-        // Drag and Drop
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
+            // "No Model" Card
+            const noneCard = createCard("", "Sem Modelo (Desbloquear Apenas)", null, currentModelId === "");
+            noneCard.onclick = () => { currentModelId = ""; loadModelsHome(); };
+            grid.appendChild(noneCard);
 
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
+            const res = await fetch('/models');
+            const data = await res.json();
 
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
+            data.models.forEach(m => {
+                const card = createCard(m.id, m.name, `/models/${m.id}/image`, currentModelId === m.id);
+                card.onclick = () => { currentModelId = m.id; loadModelsHome(); };
+                grid.appendChild(card);
+            });
+        }
+
+        function createCard(id, name, imgUrl, isSelected) {
+            const div = document.createElement('div');
+            div.className = `card ${isSelected ? 'selected' : ''}`;
+
+            let imgHtml = `<div class="preview-box placeholder">Sem Prévia</div>`;
+            if (imgUrl) {
+                // Add timestamp to force refresh cache
+                imgHtml = `<div class="preview-box" style="background-image: url('${imgUrl}?t=${new Date().getTime()}')"></div>`;
+            } else if (id === "") {
+                imgHtml = `<div class="preview-box placeholder">🔒</div>`;
+            }
+
+            div.innerHTML = `
+                ${imgHtml}
+                <div class="card-info">
+                    <div class="card-title">${name}</div>
+                </div>
+            `;
+            return div;
+        }
+
+        // Upload Logic
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleFiles(e.target.files);
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.background = 'rgba(99,102,241,0.1)'; };
+        dropZone.ondragleave = () => { dropZone.style.background = ''; };
+        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.style.background = ''; handleFiles(e.dataTransfer.files); };
 
         function handleFiles(files) {
-            if (!files || files.length === 0) return;
+            selectedFiles = Array.from(files).filter(f => f.name.endsWith('.docx'));
+            const info = document.getElementById('file-info');
+            const btn = document.getElementById('process-btn');
 
-            // Validate all are docx
-            let validFiles = [];
-            for (let i = 0; i < files.length; i++) {
-                if (files[i].name.endsWith('.docx')) {
-                    validFiles.push(files[i]);
-                }
-            }
-
-            if (validFiles.length === 0) {
-                showStatus('Por favor, envie apenas arquivos .docx', 'error');
-                return;
-            }
-
-            selectedFiles = validFiles; // Global
-
-            if (validFiles.length === 1) {
-                fileNameDisplay.textContent = validFiles[0].name;
+            if (selectedFiles.length > 0) {
+                info.innerText = `${selectedFiles.length} arquivo(s) pronto(s).`;
+                btn.classList.remove('hidden');
             } else {
-                fileNameDisplay.textContent = `${validFiles.length} arquivos selecionados`;
+                info.innerText = "Nenhum .docx válido selecionado.";
+                btn.classList.add('hidden');
             }
-
-            fileNameDisplay.classList.remove('hidden');
-            processBtn.classList.remove('hidden');
-            statusDiv.textContent = '';
         }
 
-        function showStatus(msg, type) {
-            statusDiv.textContent = msg;
-            statusDiv.className = 'status-message ' + type;
-        }
+        document.getElementById('process-btn').onclick = async () => {
+            const btn = document.getElementById('process-btn');
+            const status = document.getElementById('status-msg');
 
-        processBtn.addEventListener('click', async () => {
-            if (!selectedFiles || selectedFiles.length === 0) return;
+            btn.disabled = true;
+            btn.innerText = "Processando...";
+            status.className = 'hidden';
 
-            // Loading state
-            processBtn.disabled = true;
-            processBtn.innerHTML = '<span class="loading-spinner"></span>Processando...';
-            statusDiv.textContent = '';
-
-            const formData = new FormData();
-            selectedFiles.forEach(file => {
-                formData.append('file', file);
-            });
+            const fd = new FormData();
+            selectedFiles.forEach(f => fd.append('file', f));
+            if (currentModelId) fd.append('model_id', currentModelId);
 
             try {
-                const response = await fetch('/process', {
-                    method: 'POST',
-                    body: formData
-                });
+                const req = await fetch('/process', { method: 'POST', body: fd });
+                const res = await req.json();
 
-                const data = await response.json();
-
-                if (data.success) {
-                    showStatus(data.message || 'Arquivos processados! Baixando ZIP...', 'success');
-
-                    // Create invisible link and click it
-                    const link = document.createElement('a');
-                    link.href = data.download_url;
-                    link.download = '';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                    // Reset UI
-                    processBtn.innerHTML = 'Liberar Rodapé';
-                    processBtn.disabled = false;
+                status.classList.remove('hidden');
+                if (res.success) {
+                    status.innerText = res.message;
+                    status.classList.add('success');
+                    window.location.href = res.download_url;
                 } else {
-                    showStatus('Erro: ' + data.message, 'error');
-                    processBtn.innerHTML = 'Liberar Rodapé';
-                    processBtn.disabled = false;
+                    status.innerText = "Erro: " + res.message;
+                    status.classList.add('error');
                 }
-            } catch (error) {
-                console.error(error);
-                showStatus('Erro de conexão.', 'error');
-                processBtn.innerHTML = 'Liberar Rodapé';
-                processBtn.disabled = false;
+            } catch (e) {
+                alert('Erro de rede');
             }
-        });
+
+            btn.disabled = false;
+            btn.innerText = "Gerar Documentos";
+        };
+
+        // --- MANAGE LOGIC ---
+        async function loadModelsManage() {
+            const grid = document.getElementById('manage-grid');
+            grid.innerHTML = 'Carregando...';
+            const res = await fetch('/models');
+            const data = await res.json();
+            grid.innerHTML = '';
+
+            data.models.forEach(m => {
+                const card = document.createElement('div');
+                card.className = "card";
+                card.innerHTML = `
+                    <div class="preview-box" style="background-image: url('/models/${m.id}/image?t=${new Date().getTime()}')"></div>
+                    <div class="card-info">
+                        <div class="card-title">${m.name}</div>
+                        <button class="btn-secondary" style="margin-top:0.5rem; width:100%; color:#f87171" onclick="deleteModel('${m.id}')">Excluir</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        async function uploadModel() {
+            const name = document.getElementById('new-model-name').value;
+            const file = document.getElementById('new-model-file').files[0];
+
+            if (!name || !file) return alert("Preencha nome e arquivo");
+
+            const fd = new FormData();
+            fd.append('name', name);
+            fd.append('file', file);
+
+            await fetch('/models', { method: 'POST', body: fd });
+            document.getElementById('new-model-name').value = "";
+            document.getElementById('new-model-file').value = "";
+            loadModelsManage();
+            alert("Modelo cadastrado e prévia gerada!");
+        }
+
+        async function deleteModel(id) {
+            if (confirm('Tem certeza?')) {
+                await fetch(`/models/${id}`, { method: 'DELETE' });
+                loadModelsManage();
+            }
+        }
+
+        // Init
+        loadModelsHome();
+
     </script>
 </body>
 
