@@ -1,4 +1,3 @@
-from pdf2image import convert_from_path
 # Actually using fitz or pdf2image requires external tools like Poppler which user might not have.
 # Stick to pure python with Pillow + python-docx extraction.
 
